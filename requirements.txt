@@ -1,0 +1,10 @@
+flask
+flask-cors
+pymongo
+scikit-learn
+pandas
+numpy
+joblib
+requests
+gunicorn
+# optional locally, to compare the neural network: tensorflow
