@@ -1,8 +1,7 @@
 import json
 import joblib
-import pandas as pd
-import tensorflow as tf
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import classification_report, f1_score, accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
@@ -27,22 +26,14 @@ def train_and_evaluate():
     rf_f1 = float(f1_score(y_test, rf_preds, average="macro"))
     rf_acc = float(accuracy_score(y_test, rf_preds))
 
-    # 2. Challenger: Compact Neural Network
+    # 2. Challenger: Multi-Layer Perceptron Neural Network (16, 8 ReLU)
     scaler = StandardScaler().fit(X_train)
     X_train_sc = scaler.transform(X_train)
     X_test_sc = scaler.transform(X_test)
 
-    tf.random.set_seed(42)
-    nn = tf.keras.Sequential([
-        tf.keras.layers.Input(shape=(4,)),
-        tf.keras.layers.Dense(16, activation="relu"),
-        tf.keras.layers.Dense(8, activation="relu"),
-        tf.keras.layers.Dense(len(le.classes_), activation="softmax")
-    ])
-    nn.compile(optimizer="adam", loss="sparse_categorical_crossentropy", metrics=["accuracy"])
-    nn.fit(X_train_sc, y_train, epochs=35, batch_size=32, verbose=0)
-
-    nn_preds = nn.predict(X_test_sc, verbose=0).argmax(axis=1)
+    nn = MLPClassifier(hidden_layer_sizes=(16, 8), activation="relu", max_iter=300, random_state=42)
+    nn.fit(X_train_sc, y_train)
+    nn_preds = nn.predict(X_test_sc)
     nn_f1 = float(f1_score(y_test, nn_preds, average="macro"))
     nn_acc = float(accuracy_score(y_test, nn_preds))
 
@@ -51,13 +42,10 @@ def train_and_evaluate():
     print(f"Random Forest -> Accuracy: {rf_acc:.4f} | Macro F1: {rf_f1:.4f}")
     print(f"Neural Net    -> Accuracy: {nn_acc:.4f} | Macro F1: {nn_f1:.4f}")
     print(f"Selected Winner: {winner.upper()}")
-    print("\nClassification Report (Winner):")
-    win_preds = nn_preds if winner == "nn" else rf_preds
-    print(classification_report(y_test, win_preds, target_names=le.classes_))
+    print(classification_report(y_test, nn_preds if winner == "nn" else rf_preds, target_names=le.classes_))
 
-    # Export artifacts
     joblib.dump(rf, "model_rf.joblib")
-    nn.save("model_nn.keras")
+    joblib.dump(nn, "model_nn.joblib")
     joblib.dump(scaler, "scaler.joblib")
     joblib.dump(le, "labels.joblib")
     joblib.dump(winner, "winner.joblib")

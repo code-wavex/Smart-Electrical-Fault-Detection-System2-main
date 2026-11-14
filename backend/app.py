@@ -3,7 +3,6 @@ import json
 import uuid
 import numpy as np
 import joblib
-import tensorflow as tf
 from datetime import datetime, timezone
 from functools import wraps
 from flask import Flask, request, jsonify
@@ -31,7 +30,7 @@ winner = joblib.load("winner.joblib")
 le = joblib.load("labels.joblib")
 scaler = joblib.load("scaler.joblib")
 model_rf = joblib.load("model_rf.joblib")
-model_nn = tf.keras.models.load_model("model_nn.keras")
+model_nn = joblib.load("model_nn.joblib")
 
 with open("metrics.json") as f:
     MODEL_METRICS = json.load(f)
@@ -91,7 +90,7 @@ def now_iso():
 def predict_fault(v: float, i: float, leak: float, pf: float):
     features = np.array([[v, i, leak, pf]], dtype=float)
     if winner == "nn":
-        probs = model_nn.predict(scaler.transform(features), verbose=0)[0]
+        probs = model_nn.predict_proba(scaler.transform(features))[0]
     else:
         probs = model_rf.predict_proba(features)[0]
     idx = int(np.argmax(probs))
