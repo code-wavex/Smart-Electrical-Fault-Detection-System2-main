@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Zap, ShieldAlert, Radio, MessageSquare, Users, FileWarning,
-  CheckCircle2, Clock, Activity, LogOut, Play, PlusCircle,
+  CheckCircle2, Activity, LogOut, Play, PlusCircle,
   MapPin, Cpu, AlertTriangle, RefreshCw, Wrench
 } from 'lucide-react';
 import { apiRequest } from './api';
@@ -27,7 +27,7 @@ function formatTime(iso) {
   }
 }
 
-// Lightweight responsive SVG Voltage & Current Trend Chart (zero external chart dependency issues)
+// Lightweight responsive SVG Voltage & Current Trend Chart
 function TelemetryChart({ readings }) {
   const points = [...readings].slice(0, 20).reverse();
   if (points.length < 2) {
@@ -109,6 +109,8 @@ export default function App() {
   const [simNode, setSimNode] = useState('kanyama-01');
   const [simFault, setSimFault] = useState('overload');
   const [simBusy, setSimBusy] = useState(false);
+  const [autoSim, setAutoSim] = useState(false);
+  const [simTick, setSimTick] = useState(0);
   const [toast, setToast] = useState('');
 
   // Admin user management states
@@ -130,6 +132,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    setAutoSim(false);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
@@ -171,6 +174,31 @@ export default function App() {
       return () => clearInterval(id);
     }
   }, [user, fetchStaffDashboard, fetchResidentReports]);
+
+  // Automatic 3.5-second telemetry streaming across Kanyama & Matero nodes
+  useEffect(() => {
+    if (!autoSim || !user || user.role === 'resident') return;
+    const nodeIds = ['kanyama-01', 'kanyama-02', 'matero-01', 'matero-02'];
+    const faultPool = ['normal', 'normal', 'normal', 'overload', 'earth_fault', 'short_circuit', 'open_circuit'];
+
+    const timer = setInterval(async () => {
+      const nextNode = nodeIds[simTick % nodeIds.length];
+      const randomFault = faultPool[Math.floor(Math.random() * faultPool.length)];
+      try {
+        await apiRequest('/api/simulate/inject', {
+          method: 'POST',
+          body: JSON.stringify({ node_id: nextNode, fault_type: randomFault }),
+        });
+        setSimTick((t) => t + 1);
+        fetchStaffDashboard();
+      } catch (err) {
+        setAutoSim(false);
+        showToast(`Auto-stream stopped: ${err.message}`);
+      }
+    }, 3500);
+
+    return () => clearInterval(timer);
+  }, [autoSim, simTick, user, fetchStaffDashboard]);
 
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
@@ -628,7 +656,7 @@ export default function App() {
               Hardware-in-the-Loop Simulator (Viva Demo Control)
             </span>
             <p className="text-xs text-slate-400">
-              Inject synthetic sensor windows into the REST API to test real-time ML classification and SMS alerting.
+              Inject single windows manually or toggle Auto-Stream to continuously feed all four Lusaka nodes.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -654,11 +682,24 @@ export default function App() {
               <option value="open_circuit">Open Circuit (Line Break)</option>
             </select>
             <button
+              type="button"
               onClick={handleInjectFault}
               disabled={simBusy}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs transition disabled:opacity-50"
             >
               <Play className="w-3.5 h-3.5" /> {simBusy ? 'Sending...' : 'Inject Sensor Window'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setAutoSim((prev) => !prev)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg font-semibold text-xs transition ${
+                autoSim
+                  ? 'bg-rose-500 hover:bg-rose-400 text-white'
+                  : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
+              }`}
+            >
+              <Radio className={`w-3.5 h-3.5 ${autoSim ? 'animate-ping' : ''}`} />
+              {autoSim ? 'Stop Auto-Stream' : 'Start Auto-Stream (3.5s)'}
             </button>
           </div>
         </div>
